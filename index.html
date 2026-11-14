@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0b0f" />
+<title>نمایشگاه مجازی طراحی لباس</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b0b0f;
+    font-family:system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;
+    overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{display:block;touch-action:none}
+
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 40%,#1c1c26 0%,#08080c 70%);
+    color:#eee;z-index:20;cursor:pointer;text-align:center;padding:24px;
+    transition:opacity .35s;touch-action:manipulation}
+  #overlay.hidden{opacity:0;pointer-events:none}
+  .panel{max-width:540px}
+  .panel h1{font-size:clamp(20px,5vw,34px);margin-bottom:14px;font-weight:700;letter-spacing:-.5px}
+  .panel p{color:#a8a8b8;line-height:1.9;font-size:14px;margin-bottom:8px}
+  .keys{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0}
+  .key{border:1px solid #3a3a4a;background:#15151d;border-radius:8px;padding:7px 12px;
+    font-size:13px;color:#cfcfe0}
+  .key b{color:#fff}
+  .cta{margin-top:16px;display:inline-block;background:#fff;color:#000;padding:12px 30px;
+    border-radius:10px;font-weight:700;font-size:15px}
+
+  #crosshair{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;
+    border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 0 1.5px rgba(0,0,0,.4);
+    z-index:5;display:none;pointer-events:none}
+
+  #hud{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:6;color:#fff;
+    background:rgba(10,10,14,.8);border:1px solid rgba(255,255,255,.12);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    padding:10px 20px;border-radius:10px;font-size:14px;
+    opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;line-height:1.8;
+    max-width:92vw}
+  #hud.show{opacity:1}
+  #hud b{color:#fff;font-size:15px}
+  #hud small{color:#9d9db2;font-size:12px}
+  #hud .vote-row{margin-top:4px}
+
+  #stats{position:fixed;top:14px;left:14px;z-index:6;color:#7a7a90;font-size:12px;
+    font-variant-numeric:tabular-nums;display:none}
+
+  #notice{position:fixed;top:14px;right:14px;z-index:9;max-width:60vw;
+    background:rgba(255,150,40,.14);border:1px solid rgba(255,150,40,.45);
+    color:#ffcf8f;font-size:11.5px;line-height:1.7;padding:8px 12px;border-radius:9px;
+    display:none;direction:rtl}
+
+  #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);
+    background:rgba(255,64,96,.94);color:#fff;padding:12px 24px;border-radius:10px;
+    font-weight:700;font-size:15px;opacity:0;pointer-events:none;transition:all .25s;z-index:12;
+    white-space:nowrap}
+  #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  /* ---------- جوی‌استیک لمسی ---------- */
+  #joy{position:fixed;left:18px;bottom:18px;width:126px;height:126px;border-radius:50%;
+    background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.18);
+    z-index:7;display:none;touch-action:none}
+  #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;
+    border-radius:50%;background:rgba(255,255,255,.30);border:2px solid rgba(255,255,255,.55);
+    pointer-events:none}
+
+  /* ---------- چیدمان موبایل ---------- */
+  @media (pointer: coarse){
+    #hud{bottom:auto;top:14px;padding:8px 16px;font-size:13px}
+    #stats{top:auto;bottom:14px;left:14px;font-size:11px}
+    #crosshair{width:8px;height:8px;margin:-4px 0 0 -4px}
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="panel">
+    <h1>نمایشگاه مجازی طراحی لباس</h1>
+    <p id="ovDesc">برای ورود کلیک کنید.</p>
+    <div class="keys" id="deskKeys">
+      <div class="key"><b>W</b> جلو</div>
+      <div class="key"><b>S</b> عقب</div>
+      <div class="key"><b>A</b> چپ</div>
+      <div class="key"><b>D</b> راست</div>
+      <div class="key"><b>Shift</b> دویدن</div>
+      <div class="key"><b>E</b> رای دادن</div>
+      <div class="key"><b>Esc</b> خروج</div>
+    </div>
+    <div class="keys" id="touchKeys" style="display:none">
+      <div class="key"><b>جوی‌استیک</b> راه رفتن</div>
+      <div class="key"><b>کشیدن انگشت</b> چرخش</div>
+      <div class="key"><b>ضربه روی اثر</b> رای دادن</div>
+    </div>
+    <div class="cta" id="ctaText">ورود به نمایشگاه</div>
+  </div>
+</div>
+
+<div id="crosshair"></div>
+<div id="hud"></div>
+<div id="toast"></div>
+<div id="stats"></div>
+<div id="notice"></div>
+
+<div id="joy"><div id="joyKnob"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   ۰) تشخیص دستگاه لمسی
+   ========================================================= */
+const isTouch = (window.matchMedia && matchMedia('(pointer: coarse)').matches)
+             || ('ontouchstart' in window);
+
+/* =========================================================
+   ۱) داده‌های آثار
+   ========================================================= */
+const WORKS = [
+  { id: 1, title: 'اثر ۱', image: 'works/5504.jpg' },
+  { id: 2, title: 'اثر ۲', image: 'works/5555.jpg' },
+  { id: 3, title: 'اثر ۳', image: 'works/5557.jpg' },
+  { id: 4, title: 'اثر ۴', image: 'works/5558.jpg' },
+  { id: 5, title: 'اثر ۵', image: 'works/5559-.jpg' },
+  { id: 6, title: 'اثر ۶', image: 'works/5559.jpg' },
+  { id: 7, title: 'اثر ۷', image: 'works/5560.jpg' },
+  { id: 8, title: 'اثر ۸', image: 'works/5562.jpg' },
+  { id: 9, title: 'اثر ۹', image: 'works/5563.jpg' },
+  { id: 10, title: 'اثر ۱۰', image: 'works/5564.jpg' },
+  { id: 11, title: '', image: 'works/5565-.jpg' },
+  { id: 12, title: '', image: 'works/5565.jpg' },
+  { id: 13, title: '', image: 'works/5566.jpg' },
+  { id: 14, title: '', image: 'works/5567-.jpg' },
+  { id: 15, title: '', image: 'works/5567.jpg' },
+  { id: 16, title: '', image: 'works/5568.jpg' },
+  { id: 17, title: '', image: 'works/5570.jpg' },
+  { id: 18, title: '', image: 'works/5572.jpg' },
+  { id: 19, title: '', image: 'works/5573.jpg' },
+  { id: 20, title: '', image: 'works/5575.jpg' },
+  { id: 21, title: '', image: 'works/5576.jpg' },
+  { id: 22, title: '', image: 'works/5577.jpg' },
+  { id: 23, title: '', image: 'works/5578.jpg' },
+  { id: 24, title: '', image: 'works/5583.jpg' },
+  { id: 25, title: '', image: 'works/5584.jpg' },
+  { id: 26, title: '', image: 'works/5586.jpg' },
+  { id: 27, title: '', image: 'works/5589.jpg' },
+  { id: 28, title: '', image: 'works/5592.jpg' },
+  { id: 29, title: '', image: 'works/5593.jpg' },
+  { id: 30, title: '', image: 'works/5594.jpg' },
+  { id: 31, title: '', image: 'works/5596.jpg' },
+  { id: 32, title: '', image: 'works/5597.jpg' },
+  { id: 33, title: '', image: 'works/5598-.jpg' },
+  { id: 34, title: '', image: 'works/5598.jpg' },
+  { id: 35, title: '', image: 'works/5599.jpg' },
+  { id: 36, title: '', image: 'works/5600-.jpg' },
+  { id: 37, title: '', image: 'works/5600.jpg' },
+  { id: 38, title: '', image: 'works/5601.jpg' },
+  { id: 39, title: '', image: 'works/5602.jpg' },
+  { id: 40, title: '', image: 'works/5605-.jpg' },
+  { id: 41, title: '', image: 'works/5605.jpg' },
+  { id: 42, title: '', image: 'works/5606.jpg' },
+  { id: 43, title: '', image: 'works/5607.jpg' },
+  { id: 44, title: '', image: 'works/5608-.jpg' },
+  { id: 45, title: '', image: 'works/5608.jpg' },
+  { id: 46, title: '', image: 'works/5612.jpg' },
+  { id: 47, title: '', image: 'works/5615.jpg' },
+  { id: 48, title: '', image: 'works/5616.jpg' },
+  { id: 49, title: '', image: 'works/5618.jpg' },
+  { id: 50, title: '', image: 'works/5619.jpg' },
+  { id: 51, title: '', image: 'works/5620-.jpg' },
+  { id: 52, title: '', image: 'works/5620.jpg' },
+  { id: 53, title: '', image: 'works/5624.jpg' },
+  { id: 54, title: '', image: 'works/5625.jpg' },
+  { id: 55, title: '', image: 'works/5626-.jpg' },
+  { id: 56, title: '', image: 'works/5626.jpg' },
+  { id: 57, title: '', image: 'works/5627.jpg' },
+  { id: 58, title: '', image: 'works/5628.jpg' },
+  { id: 59, title: '', image: 'works/5630.jpg' },
+  { id: 60, title: '', image: 'works/5634.jpg' },
+  { id: 61, title: '', image: 'works/5635.jpg' },
+  { id: 62, title: '', image: 'works/5636.jpg' },
+  { id: 63, title: '', image: 'works/5637.jpg' },
+  { id: 64, title: '', image: 'works/5639.jpg' },
+  { id: 65, title: '', image: 'works/5643.jpg' },
+  { id: 66, title: '', image: 'works/5644(2).jpg' },
+  { id: 67, title: '', image: 'works/5644.jpg' },
+  { id: 68, title: '', image: 'works/5645.jpg' },
+  { id: 69, title: '', image: 'works/5647.jpg' },
+  { id: 70, title: '', image: 'works/5648-.jpg' },
+  { id: 71, title: '', image: 'works/5648.jpg' },
+  { id: 72, title: '', image: 'works/5649.jpg' },
+  { id: 73, title: '', image: 'works/5650-.jpg' },
+  { id: 74, title: '', image: 'works/5650.jpg' },
+  { id: 75, title: '', image: 'works/5652.jpg' },
+  { id: 76, title: '', image: 'works/5654-.jpg' },
+  { id: 77, title: '', image: 'works/5654.jpg' },
+  { id: 78, title: '', image: 'works/5655-.jpg' },
+  { id: 79, title: '', image: 'works/5655.jpg' },
+  { id: 80, title: '', image: 'works/5656.jpg' },
+  { id: 81, title: '', image: 'works/5657(2).jpg' },
+  { id: 82, title: '', image: 'works/5657.jpg' },
+  { id: 83, title: '', image: 'works/5660.jpg' },
+  { id: 84, title: '', image: 'works/5661.jpg' },
+  { id: 85, title: '', image: 'works/5662.jpg' },
+  { id: 86, title: '', image: 'works/5663.jpg' },
+  { id: 87, title: '', image: 'works/5664.jpg' },
+  { id: 88, title: '', image: 'works/5665(2).jpg' },
+  { id: 89, title: '', image: 'works/5665.jpg' },
+  { id: 90, title: '', image: 'works/5666.jpg' },
+  { id: 91, title: '', image: 'works/5667.jpg' },
+  { id: 92, title: '', image: 'works/5700.jpg' },
+  { id: 93, title: '', image: 'works/5701.jpg' },
+  { id: 94, title: '', image: 'works/5703.jpg' },
+  { id: 95, title: '', image: 'works/5704.jpg' },
+  { id: 96, title: '', image: 'works/5705.jpg' },
+  { id: 97, title: '', image: 'works/5706.jpg' },
+  { id: 98, title: '', image: 'works/5707.jpg' },
+  { id: 99, title: '', image: 'works/5709.jpg' },
+];
+
+/* =========================================================
+   ۲) تنظیمات
+   ========================================================= */
+const CFG = {
+  HX: 28, HZ: 14, HEIGHT: 5.5, T: 0.4,
+  FRAME_W: 1.8, FRAME_H: 2.6, FRAME_Y: 2.2,
+  WALK: 4.2, RUN: 7.5, RADIUS: 0.45, EYE: 1.65,
+};
+const IZ = 5;
+
+/* محدوده بارگذاری تصاویر (بارگذاری تنبل برای موبایل) */
+const LOAD_DIST    = isTouch ? 20 : 26;
+const UNLOAD_DIST  = LOAD_DIST + 8;
+const MAX_TEX      = isTouch ? 640 : 1024;   // حداکثر ضلع بافت
+const MAX_CONCURRENT = isTouch ? 3 : 6;
+
+/* =========================================================
+   ۳) صحنه، دوربین، رندرر
+   ========================================================= */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101018);
+
+const camera = new THREE.PerspectiveCamera(
+  isTouch ? 78 : 72, innerWidth / innerHeight, 0.1, 400
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 1.25 : 1.5));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+/* =========================================================
+   ۴) نورپردازی
+   ========================================================= */
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+scene.add(new THREE.HemisphereLight(0xffffff, 0x30303d, 1.3));
+const dir = new THREE.DirectionalLight(0xffffff, 0.5);
+dir.position.set(0, 20, 0);
+scene.add(dir);
+for (const x of [-15, 15]) {
+  const pl = new THREE.PointLight(0xffeedd, 30, 34, 1.5);
+  pl.position.set(x, CFG.HEIGHT - 0.7, 0);
+  scene.add(pl);
+}
+
+/* =========================================================
+   ۵) کف و سقف
+   ========================================================= */
+function floorTexture() {
+  const s = 512, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.fillStyle = '#33333d'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 5000; i++) {
+    g.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
+    g.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.4)'; g.lineWidth = 4; g.strokeRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(28, 14); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2;
+  return t;
+}
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(CFG.HX * 2, CFG.HZ * 2),
+  new THREE.MeshLambertMaterial({ map: floorTexture() })
+);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+const ceil = new THREE.Mesh(
+  new THREE.PlaneGeometry(CFG.HX * 2, CFG.HZ * 2),
+  new THREE.MeshLambertMaterial({ color: 0x1a1a22 })
+);
+ceil.rotation.x = Math.PI / 2; ceil.position.y = CFG.HEIGHT;
+scene.add(ceil);
+
+const stripMat = new THREE.MeshBasicMaterial({ color: 0xfff4e0 });
+for (let x = -24; x <= 24; x += 8) for (const z of [-10, 0, 10]) {
+  const s = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.06, 0.45), stripMat);
+  s.position.set(x, CFG.HEIGHT - 0.12, z);
+  scene.add(s);
+}
+
+/* =========================================================
+   ۶) دیوارها و برخورد
+   ========================================================= */
+const colliders = [];
+const wallMat = new THREE.MeshLambertMaterial({ color: 0xe9e9ee });
+function addWall(cx, cz, w, d) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, CFG.HEIGHT, d), wallMat);
+  m.position.set(cx, CFG.HEIGHT / 2, cz);
+  scene.add(m);
+  colliders.push({ x1: cx - w / 2, x2: cx + w / 2, z1: cz - d / 2, z2: cz + d / 2 });
+}
+const { HX, HZ, T } = CFG;
+addWall(0, -HZ, HX * 2 + T, T);
+addWall(0,  HZ, HX * 2 + T, T);
+addWall(-HX, 0, T, HZ * 2 + T);
+addWall( HX, 0, T, HZ * 2 + T);
+for (const z of [-IZ, IZ]) {
+  addWall(-12, z, 20, T);
+  addWall( 12, z, 20, T);
+}
+
+/* =========================================================
+   ۷) سطوح قاب‌گذاری
+   ========================================================= */
+const SURFACES = [];
+SURFACES.push({ type: 'z', from: -26, to: 26, at: -HZ + T / 2 + 0.02, normal:  1 });
+SURFACES.push({ type: 'z', from: -26, to: 26, at:  HZ - T / 2 - 0.02, normal: -1 });
+SURFACES.push({ type: 'x', from: -11, to: 11, at: -HX + T / 2 + 0.02, normal:  1 });
+SURFACES.push({ type: 'x', from: -11, to: 11, at:  HX - T / 2 - 0.02, normal: -1 });
+for (const z of [-IZ, IZ]) for (const [a, b] of [[-22, -2], [2, 22]]) {
+  SURFACES.push({ type: 'z', from: a, to: b, at: z - T / 2 - 0.02, normal: -1 });
+  SURFACES.push({ type: 'z', from: a, to: b, at: z + T / 2 + 0.02, normal:  1 });
+}
+
+/* =========================================================
+   ۸) سیستم رای
+   ========================================================= */
+const VOTES_KEY = 'gallery_votes_v1';
+const MY_VOTES_KEY = 'gallery_my_votes_v1';
+function loadVotes() { try { return JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch { return {}; } }
+function loadMyVotes() { try { return new Set(JSON.parse(localStorage.getItem(MY_VOTES_KEY)) || []); } catch { return new Set(); } }
+function saveVotes(v) { try { localStorage.setItem(VOTES_KEY, JSON.stringify(v)); } catch {} }
+function saveMyVotes(s) { try { localStorage.setItem(MY_VOTES_KEY, JSON.stringify([...s])); } catch {} }
+
+const votes = loadVotes();
+const myVotes = loadMyVotes();
+const heartMeshes = {};
+
+function voteFor(workId) {
+  if (myVotes.has(workId)) return false;
+  myVotes.add(workId);
+  votes[workId] = (votes[workId] || 0) + 1;
+  saveMyVotes(myVotes); saveVotes(votes);
+  const h = heartMeshes[workId];
+  if (h) h.material.map = HEART_FILLED;
+  if (navigator.vibrate) { try { navigator.vibrate(28); } catch {} }
+  return true;
+}
+
+/* =========================================================
+   ۹) بافت قلب رای
+   ========================================================= */
+function makeHeartTexture(filled) {
+  const s = 128, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, s, s);
+  g.font = `bold ${s * 0.85}px system-ui, "Segoe UI Symbol", sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (filled) {
+    g.fillStyle = '#ff4060';
+    g.fillText('♥', s / 2, s / 2);
+  } else {
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath(); g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 7;
+    g.strokeText('♥', s / 2, s / 2);
+    g.fillStyle = 'rgba(255,255,255,0.15)';
+    g.fillText('♥', s / 2, s / 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const HEART_EMPTY = makeHeartTexture(false);
+const HEART_FILLED = makeHeartTexture(true);
+
+/* =========================================================
+   ۹.۵) بافت کپشن (نام فایل بدون پسوند)
+   ========================================================= */
+function makeLabelTexture(text) {
+  const W = 384, H = 64, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+
+  g.fillStyle = 'rgba(12, 12, 18, 0.85)';
+  const r = 14;
+  g.beginPath();
+  g.moveTo(r, 0);
+  g.lineTo(W - r, 0); g.quadraticCurveTo(W, 0, W, r);
+  g.lineTo(W, H - r); g.quadraticCurveTo(W, H, W - r, H);
+  g.lineTo(r, H);     g.quadraticCurveTo(0, H, 0, H - r);
+  g.lineTo(0, r);     g.quadraticCurveTo(0, 0, r, 0);
+  g.closePath();
+  g.fill();
+
+  g.fillStyle = '#f0f0f8';
+  g.font = 'bold 30px system-ui, Tahoma, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.direction = 'ltr';
+  g.fillText(text, W / 2, H / 2 + 1);
+
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 2;
+  return t;
+}
+
+/* =========================================================
+   ۱۰) بافت جایگزین (سبک، برای موبایل)
+   ========================================================= */
+function makePlaceholder(work) {
+  const W = 128, H = 180, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const hue = (work.id * 37) % 360;
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, `hsl(${hue}, 30%, 93%)`);
+  bg.addColorStop(1, `hsl(${(hue + 50) % 360}, 35%, 74%)`);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = `hsla(${(hue + 180) % 360}, 40%, 35%, 0.22)`;
+  g.beginPath();
+  g.moveTo(W * 0.50, H * 0.16); g.lineTo(W * 0.74, H * 0.32);
+  g.lineTo(W * 0.63, H * 0.86); g.lineTo(W * 0.37, H * 0.86);
+  g.lineTo(W * 0.26, H * 0.32); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(20,20,30,0.55)';
+  g.font = 'bold 34px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(work.id), W / 2, H * 0.5);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2;
+  return t;
+}
+
+/* =========================================================
+   ۱۱) ساخت قاب + قلب رای + کپشن
+   ========================================================= */
+const frameMat = new THREE.MeshLambertMaterial({ color: 0x14141a });
+const hoverables = [];
+const artItems = [];            // برای بارگذاری تنبل
+
+function createArtwork(work, surf, t) {
+  let x, z, rotY;
+  if (surf.type === 'z') { x = t; z = surf.at; rotY = surf.normal > 0 ? 0 : Math.PI; }
+  else { x = surf.at; z = t; rotY = surf.normal > 0 ? Math.PI / 2 : -Math.PI / 2; }
+
+  const g = new THREE.Group();
+  g.position.set(x, CFG.FRAME_Y, z);
+  g.rotation.y = rotY;
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(CFG.FRAME_W + 0.24, CFG.FRAME_H + 0.24, 0.08),
+    frameMat
+  );
+  frame.position.z = 0.04;
+  g.add(frame);
+
+  const placeholder = makePlaceholder(work);
+  const mat = new THREE.MeshLambertMaterial({ map: placeholder });
+  const art = new THREE.Mesh(new THREE.PlaneGeometry(CFG.FRAME_W, CFG.FRAME_H), mat);
+  art.position.z = 0.09;
+  art.userData = { work, isHeart: false };
+  g.add(art); hoverables.push(art);
+
+  const hasVoted = myVotes.has(work.id);
+  const heartMat = new THREE.MeshBasicMaterial({
+    map: hasVoted ? HEART_FILLED : HEART_EMPTY,
+    transparent: true, depthWrite: false,
+  });
+  const heart = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), heartMat);
+  heart.position.set(CFG.FRAME_W / 2 + 0.45, 0, 0.12);
+  heart.userData = { work, isHeart: true };
+  g.add(heart); hoverables.push(heart);
+  heartMeshes[work.id] = heart;
+
+  // کپشن: نام فایل بدون پسوند
+  const fileName = (work.image || '').split('/').pop().replace(/\.[^.]+$/, '').trim();
+  if (fileName) {
+    const labelMat = new THREE.MeshBasicMaterial({
+      map: makeLabelTexture(fileName), transparent: true, depthWrite: false,
+    });
+    const label = new THREE.Mesh(
+      new THREE.PlaneGeometry(CFG.FRAME_W * 0.85, 0.26), labelMat
+    );
+    label.position.set(0, -(CFG.FRAME_H / 2) - 0.28, 0.12);
+    g.add(label);
+  }
+
+  artItems.push({
+    group: g, mat, placeholder,
+    tex: null, url: work.image, state: 'idle', work,
+  });
+
+  scene.add(g);
+}
+
+(function placeWorks() {
+  const totalLen = SURFACES.reduce((a, s) => a + (s.to - s.from), 0);
+  const plan = SURFACES.map((s) => {
+    const exact = (WORKS.length * (s.to - s.from)) / totalLen;
+    return { s, n: Math.floor(exact), frac: exact - Math.floor(exact) };
+  });
+  let assigned = plan.reduce((a, p) => a + p.n, 0);
+  const byFrac = [...plan].sort((a, b) => b.frac - a.frac);
+  let k = 0;
+  while (assigned < WORKS.length) { byFrac[k % byFrac.length].n++; assigned++; k++; }
+  let idx = 0;
+  for (const p of plan) {
+    const step = (p.s.to - p.s.from) / p.n;
+    for (let i = 0; i < p.n && idx < WORKS.length; i++) {
+      createArtwork(WORKS[idx], p.s, p.s.from + step * (i + 0.5));
+      idx++;
+    }
+  }
+})();
+
+/* =========================================================
+   ۱۱.۵) بارگذاری تنبل تصاویر + مدیریت خطا
+   ========================================================= */
+let loadingCount = 0;
+const failedSet = new Set();
+const noticeEl = document.getElementById('notice');
+let noticeShown = false;
+
+function refreshNotice() {
+  if (failedSet.size === 0) return;
+  const n = failedSet.size;
+  noticeEl.textContent = `⚠ ${n} تصویر بارگذاری نشد — فایل‌ها را بررسی کنید و صفحه را از طریق یک سرور محلی باز کنید (نه file://)`;
+  noticeEl.style.display = 'block';
+  noticeShown = true;
+}
+
+function loadArtTexture(item) {
+  item.state = 'loading';
+  loadingCount++;
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  let finished = false;
+  const done = () => { if (!finished) { finished = true; loadingCount--; } };
+
+  img.onload = () => {
+    try {
+      let w = img.naturalWidth || img.width;
+      let h = img.naturalHeight || img.height;
+      if (!w || !h) throw new Error('size');
+
+      const s = Math.min(1, MAX_TEX / Math.max(w, h));
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+
+      const c = document.createElement('canvas');
+      c.width = cw; c.height = ch;
+      c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 1;
+
+      if (item.tex) item.tex.dispose();
+      item.tex = tex;
+      item.mat.map = tex;
+      item.mat.needsUpdate = true;
+      item.state = 'ready';
+    } catch (err) {
+      item.state = 'error';
+      failedSet.add(item.url);
+      refreshNotice();
+    }
+    done();
+  };
+
+  img.onerror = () => {
+    item.state = 'error';
+    failedSet.add(item.url);
+    refreshNotice();
+    done();
+  };
+
+  img.src = encodeURI(item.url);
+}
+
+let lazyAcc = 0, forceLazy = true;
+function updateLazy(dt) {
+  lazyAcc += dt;
+  if (lazyAcc < 0.3 && !forceLazy) return;
+  lazyAcc = 0; forceLazy = false;
+
+  for (let i = 0; i < artItems.length; i++) {
+    const it = artItems[i];
+    if (it.state !== 'idle' || loadingCount >= MAX_CONCURRENT) continue;
+    if (it.group.position.distanceTo(camera.position) < LOAD_DIST) loadArtTexture(it);
+  }
+  for (let i = 0; i < artItems.length; i++) {
+    const it = artItems[i];
+    if (it.state !== 'ready') continue;
+    if (it.group.position.distanceTo(camera.position) > UNLOAD_DIST) {
+      it.mat.map = it.placeholder;
+      it.mat.needsUpdate = true;
+      if (it.tex) { it.tex.dispose(); it.tex = null; }
+      it.state = 'idle';
+    }
+  }
+}
+
+/* =========================================================
+   ۱۲) بازیکن و کنترل
+   ========================================================= */
+const player = { pos: new THREE.Vector3(0, CFG.EYE, 11), yaw: 0, pitch: 0 };
+const keys = Object.create(null);
+
+let active = false;      // آیا بازدید شروع شده؟
+let locked = false;      // pointer lock (فقط دسکتاپ)
+
+const overlay   = document.getElementById('overlay');
+const crosshair = document.getElementById('crosshair');
+const hud       = document.getElementById('hud');
+const statsEl   = document.getElementById('stats');
+const toast     = document.getElementById('toast');
+const joyEl     = document.getElementById('joy');
+const knobEl    = document.getElementById('joyKnob');
+
+/* ---- متن راهنما بر اساس دستگاه ---- */
+if (isTouch) {
+  document.getElementById('ovDesc').textContent = 'برای ورود، صفحه را لمس کنید. با جوی‌استیک راه بروید، با کشیدن انگشت بچرخید و برای رای دادن روی اثر ضربه بزنید.';
+  document.getElementById('deskKeys').style.display = 'none';
+  document.getElementById('touchKeys').style.display = 'flex';
+  document.getElementById('ctaText').textContent = 'ورود به نمایشگاه';
+} else {
+  document.getElementById('ovDesc').textContent = 'برای ورود کلیک کنید. با ماوس بچرخید و با کلیدها راه بروید.';
+}
+
+function startExperience() {
+  if (isTouch) {
+    active = true;
+    overlay.classList.add('hidden');
+    crosshair.style.display = 'block';
+    statsEl.style.display = 'block';
+    joyEl.style.display = 'block';
+    forceLazy = true;
+  } else {
+    renderer.domElement.requestPointerLock();
+  }
+}
+overlay.addEventListener('click', startExperience);
+
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === renderer.domElement;
+  active = locked;
+  overlay.classList.toggle('hidden', locked);
+  crosshair.style.display = locked ? 'block' : 'none';
+  statsEl.style.display = locked ? 'block' : 'none';
+  if (!locked) { for (const k in keys) keys[k] = false; hud.classList.remove('show'); }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!locked) return;
+  player.yaw   -= e.movementX * 0.0022;
+  player.pitch -= e.movementY * 0.0022;
+  const lim = Math.PI / 2 - 0.05;
+  player.pitch = Math.max(-lim, Math.min(lim, player.pitch));
+});
+
+let currentHover = null;
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 1400);
+}
+
+function updateHud() {
+  if (!currentHover) { hud.classList.remove('show'); return; }
+  const w = currentHover;
+  const count = votes[w.id] || 0;
+  const voted = myVotes.has(w.id);
+  const hint = voted
+    ? '✓ رای شما برای این اثر ثبت شده'
+    : (isTouch ? 'برای رای دادن روی اثر ضربه بزنید' : 'کلید E یا کلیک برای رای دادن');
+  const title = w.title || ('اثر ' + w.id);
+  hud.innerHTML =
+    `<b>${title}</b>` +
+    `<div class="vote-row">${count} رای &nbsp;·&nbsp; <small>${hint}</small></div>`;
+  hud.classList.add('show');
+}
+
+function handleVote() {
+  if (!currentHover || !active) return;
+  const w = currentHover;
+  if (voteFor(w.id)) { showToast('✓ رای ثبت شد'); updateHud(); }
+  else showToast('قبلاً رای داده‌اید');
+}
+
+/* ---- کیبورد ---- */
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE') handleVote();
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+/* ---- کلیک دسکتاپ ---- */
+if (!isTouch) {
+  document.addEventListener('click', () => { if (locked) handleVote(); });
+}
+
+/* =========================================================
+   ۱۲.۵) کنترل لمسی: جوی‌استیک + چرخش + ضربه برای رای
+   ========================================================= */
+const joyVec = { x: 0, y: 0 };
+let joyId = null;
+
+function setKnob(dx, dy) {
+  knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+function updateJoy(e) {
+  const r = joyEl.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const max = r.width / 2 - 12;
+  const len = Math.hypot(dx, dy);
+  if (len > max) { dx = (dx / len) * max; dy = (dy / len) * max; }
+  joyVec.x = dx / max;
+  joyVec.y = dy / max;
+  setKnob(dx, dy);
+}
+joyEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  joyId = e.pointerId;
+  try { joyEl.setPointerCapture(e.pointerId); } catch {}
+  updateJoy(e);
+});
+joyEl.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== joyId) return;
+  e.preventDefault();
+  updateJoy(e);
+});
+function endJoy(e) {
+  if (e.pointerId !== joyId) return;
+  joyId = null;
+  joyVec.x = 0; joyVec.y = 0;
+  setKnob(0, 0);
+}
+joyEl.addEventListener('pointerup', endJoy);
+joyEl.addEventListener('pointercancel', endJoy);
+
+/* ---- چرخش با کشیدن انگشت روی صحنه ---- */
+const canvasEl = renderer.domElement;
+let lookId = null;
+let lookLastX = 0, lookLastY = 0;
+let lookStartX = 0, lookStartY = 0, lookStartT = 0, lookMove = 0;
+let lookDX = 0, lookDY = 0;
+
+canvasEl.addEventListener('pointerdown', (e) => {
+  if (!isTouch || !active) return;
+  if (lookId !== null) return;
+  lookId = e.pointerId;
+  lookLastX = lookStartX = e.clientX;
+  lookLastY = lookStartY = e.clientY;
+  lookStartT = performance.now();
+  lookMove = 0;
+  try { canvasEl.setPointerCapture(e.pointerId); } catch {}
+});
+
+canvasEl.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== lookId) return;
+  const dx = e.clientX - lookLastX;
+  const dy = e.clientY - lookLastY;
+  lookLastX = e.clientX; lookLastY = e.clientY;
+  lookDX += dx; lookDY += dy;
+  lookMove += Math.abs(dx) + Math.abs(dy);
+});
+
+function endLook(e) {
+  if (e.pointerId !== lookId) return;
+  lookId = null;
+  const dur = performance.now() - lookStartT;
+  if (lookMove < 14 && dur < 400) {
+    const nx = (e.clientX / innerWidth) * 2 - 1;
+    const ny = -(e.clientY / innerHeight) * 2 + 1;
+    tapVote(nx, ny);
+  }
+}
+canvasEl.addEventListener('pointerup', endLook);
+canvasEl.addEventListener('pointercancel', (e) => { if (e.pointerId === lookId) lookId = null; });
+
+const tapRay = new THREE.Raycaster();
+function tapVote(nx, ny) {
+  tapRay.far = 14;
+  tapRay.setFromCamera({ x: nx, y: ny }, camera);
+  const hit = tapRay.intersectObjects(hoverables, false)[0];
+  if (!hit) return;
+  const w = hit.object.userData.work;
+  currentHover = w;
+  if (voteFor(w.id)) showToast('✓ رای ثبت شد');
+  else showToast('قبلاً رای داده‌اید');
+  updateHud();
+}
+
+/* =========================================================
+   ۱۳) حرکت و برخورد
+   ========================================================= */
+function blocked(x, z) {
+  const R = CFG.RADIUS;
+  for (const c of colliders) {
+    if (x > c.x1 - R && x < c.x2 + R && z > c.z1 - R && z < c.z2 + R) return true;
+  }
+  return false;
+}
+function tryMove(dx, dz) {
+  const nx = player.pos.x + dx;
+  if (!blocked(nx, player.pos.z)) player.pos.x = nx;
+  const nz = player.pos.z + dz;
+  if (!blocked(player.pos.x, nz)) player.pos.z = nz;
+}
+
+/* =========================================================
+   ۱۴) حلقه رندر
+   ========================================================= */
+const clock = new THREE.Clock();
+const raycaster = new THREE.Raycaster();
+raycaster.far = 7;
+const CENTER = new THREE.Vector2(0, 0);
+let fpsFrames = 0, fpsAcc = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (active) {
+    /* ---------- ورودی چرخش (لمسی) ---------- */
+    if (lookDX !== 0 || lookDY !== 0) {
+      const s = 0.0032;
+      player.yaw   -= lookDX * s;
+      player.pitch -= lookDY * s;
+      const lim = Math.PI / 2 - 0.05;
+      player.pitch = Math.max(-lim, Math.min(lim, player.pitch));
+      lookDX = 0; lookDY = 0;
+    }
+
+    /* ---------- ورودی حرکت ---------- */
+    let inF = 0, inS = 0;
+    if (keys['KeyW'] || keys['ArrowUp'])    inF += 1;
+    if (keys['KeyS'] || keys['ArrowDown'])  inF -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) inS += 1;
+    if (keys['KeyA'] || keys['ArrowLeft'])  inS -= 1;
+    if (isTouch) { inF += -joyVec.y; inS += joyVec.x; }
+
+    let mag = Math.hypot(inS, inF);
+    if (mag > 1) { inS /= mag; inF /= mag; mag = 1; }
+
+    if (mag > 0.01) {
+      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? CFG.RUN : CFG.WALK;
+      const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+      const rx =  Math.cos(player.yaw), rz = -Math.sin(player.yaw);
+      const mx = fx * inF + rx * inS;
+      const mz = fz * inF + rz * inS;
+      tryMove(mx * speed * dt, mz * speed * dt);
+    }
+
+    /* ---------- تشخیص اثر زیر نشانگر ---------- */
+    raycaster.setFromCamera(CENTER, camera);
+    const hit = raycaster.intersectObjects(hoverables, false)[0];
+    const newHover = hit ? hit.object.userData.work : null;
+    if (newHover !== currentHover) { currentHover = newHover; updateHud(); }
+  }
+
+  camera.position.copy(player.pos);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+
+  updateLazy(dt);
+
+  renderer.render(scene, camera);
+
+  fpsFrames++; fpsAcc += dt;
+  if (fpsAcc >= 0.5) {
+    statsEl.textContent = Math.round(fpsFrames / fpsAcc) + ' FPS';
+    fpsFrames = 0; fpsAcc = 0;
+    if (!noticeShown && failedSet.size > 0) refreshNotice();
+  }
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 1.25 : 1.5));
+});
+
+/* شروع بارگذاری تصاویر نزدیک */
+forceLazy = true;
+animate();
+</script>
+</body>
+</html>
