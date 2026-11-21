@@ -510,6 +510,8 @@ function createArtwork(work, surf, t) {
   artItems.push({
     group: g, mat, placeholder,
     tex: null, url: work.image, state: 'idle', work,
+    retryCount: 0,
+    retryAt: 0,
   });
 
   scene.add(g);
@@ -551,6 +553,22 @@ function refreshNotice() {
   noticeShown = true;
 }
 
+const MAX_IMAGE_RETRIES = 2;
+
+function markImageFailure(item) {
+  item.retryCount = (item.retryCount || 0) + 1;
+
+  if (item.retryCount <= MAX_IMAGE_RETRIES) {
+    item.state = 'idle';
+    item.retryAt = Date.now() + (500 * item.retryCount);
+    return;
+  }
+
+  item.state = 'error';
+  failedSet.add(item.url);
+  refreshNotice();
+}
+
 function loadArtTexture(item) {
   item.state = 'loading';
   loadingCount++;
@@ -584,18 +602,16 @@ function loadArtTexture(item) {
       item.mat.map = tex;
       item.mat.needsUpdate = true;
       item.state = 'ready';
+      item.retryCount = 0;
+      item.retryAt = 0;
     } catch (err) {
-      item.state = 'error';
-      failedSet.add(item.url);
-      refreshNotice();
+      markImageFailure(item);
     }
     done();
   };
 
   img.onerror = () => {
-    item.state = 'error';
-    failedSet.add(item.url);
-    refreshNotice();
+    markImageFailure(item);
     done();
   };
 
@@ -610,7 +626,11 @@ function updateLazy(dt) {
 
   for (let i = 0; i < artItems.length; i++) {
     const it = artItems[i];
-    if (it.state !== 'idle' || loadingCount >= MAX_CONCURRENT) continue;
+    if (
+      it.state !== 'idle' ||
+      loadingCount >= MAX_CONCURRENT ||
+      Date.now() < (it.retryAt || 0)
+    ) continue;
     if (it.group.position.distanceTo(camera.position) < LOAD_DIST) loadArtTexture(it);
   }
   for (let i = 0; i < artItems.length; i++) {
